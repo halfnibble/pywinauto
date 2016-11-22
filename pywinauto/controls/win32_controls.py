@@ -973,7 +973,7 @@ class StringGridWrapper(hwndwrapper.HwndWrapper):
 
     def row_count(self):
         """Return the number of rows in the StringGrid"""
-        return self.send_message(win32defines.RB_GETROWCOUNT)
+        return self.send_message(win32defines.TCM_GETROWCOUNT)
     # Non PEP-8 alias
     RowCount = row_count
 
