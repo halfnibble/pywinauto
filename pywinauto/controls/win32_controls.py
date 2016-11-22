@@ -971,6 +971,12 @@ class StringGridWrapper(hwndwrapper.HwndWrapper):
     # Non PEP-8 alias
     ItemCount = item_count
 
+    def row_count(self):
+        """Return the number of rows in the StringGrid"""
+        return self.send_message(win32defines.RB_GETROWCOUNT)
+    # Non PEP-8 alias
+    RowCount = row_count
+
     #-----------------------------------------------------------
     def item_data(self, i):
         """Return the item_data if any associted with the item"""
