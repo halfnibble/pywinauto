@@ -885,6 +885,217 @@ class StaticWrapper(hwndwrapper.HwndWrapper):
     # Non PEP-8 alias
     _NeedsImageProp = _needs_image_prop
 
+
+#====================================================================
+class StringGridWrapper(hwndwrapper.HwndWrapper):
+
+    """Wrap a windows StringGrid control"""
+
+    friendlyclassname = "StringGrid"
+    windowclasses = [
+        "StringGrid",
+        "TStringGrid",
+        r"WindowsForms\d*\.StringGrid\..*",
+        ".*StringGrid", ]
+    has_title = False
+
+    #-----------------------------------------------------------
+    def __init__(self, hwnd):
+        """Initialize the control"""
+        super(StringGridWrapper, self).__init__(hwnd)
+
+    @property
+    def writable_props(self):
+        """Extend default properties list."""
+        props = super(StringGridWrapper, self).writable_props
+        props.extend(["selected_indices"])
+        return props
+
+    #-----------------------------------------------------------
+    def is_single_selection(self):
+        """Check whether the StringGrid has single selection mode."""
+        num_selected = self.send_message(win32defines.LB_GETSELCOUNT)
+
+        # if we got LB_ERR then it is a single selection list box
+        return (num_selected == win32defines.LB_ERR)
+    # Non PEP-8 alias
+    IsSingleSelection = is_single_selection
+
+    #-----------------------------------------------------------
+    def selected_indices(self):
+        """The currently selected indices of the StringGrid"""
+        num_selected = self.send_message(win32defines.LB_GETSELCOUNT)
+
+        # if we got LB_ERR then it is a single selection list box
+        if num_selected == win32defines.LB_ERR:
+            items = tuple([self.send_message(win32defines.LB_GETCURSEL)])
+
+        # otherwise it is a multiselection list box
+        else:
+            items = (ctypes.c_int * num_selected)()
+
+            self.send_message(
+                win32defines.LB_GETSELITEMS, num_selected, ctypes.byref(items))
+
+            # Need to convert from Ctypes array to a python tuple
+            items = tuple(items)
+
+        return items
+    # Non PEP-8 alias
+    SelectedIndices = selected_indices
+
+    #-----------------------------------------------------------
+    def _get_item_index(self, ident):
+        """Return the index of the item 'ident'"""
+        if isinstance(ident, six.integer_types):
+
+            if ident >= self.item_count():
+                raise IndexError(('StringGrid has {0} items, you requested ' + \
+                    'item {1} (0 based)').format(self.item_count(), ident))
+
+            # negative index
+            if ident < 0:
+                ident = (self.item_count() + ident)
+
+        elif isinstance(ident, six.string_types):
+            # todo - implement fuzzy lookup for ComboBox items
+            # todo - implement appdata lookup for combobox items
+            ident = self.item_texts().index(ident) #-1
+
+        return ident
+
+    #-----------------------------------------------------------
+    def item_count(self):
+        """Return the number of items in the StringGrid"""
+        return self.send_message(win32defines.LB_GETCOUNT)
+    # Non PEP-8 alias
+    ItemCount = item_count
+
+    #-----------------------------------------------------------
+    def item_data(self, i):
+        """Return the item_data if any associted with the item"""
+        index = self._get_item_index(i)
+        return self.send_message(win32defines.LB_GETITEMDATA, index)
+    # Non PEP-8 alias
+    ItemData = item_data
+
+    #-----------------------------------------------------------
+    def item_texts(self):
+        """Return the text of the items of the StringGrid"""
+        return _get_multiple_text_items(
+            self,
+            win32defines.LB_GETCOUNT,
+            win32defines.LB_GETTEXTLEN,
+            win32defines.LB_GETTEXT)
+    # Non PEP-8 alias
+    ItemTexts = item_texts
+
+    #-----------------------------------------------------------
+    def item_rect(self, item):
+        """Return the rect of the item"""
+        index = self._get_item_index(item)
+        rect = win32structures.RECT()
+        res = self.send_message(win32defines.LB_GETITEMRECT, index, ctypes.byref(rect))
+        if res == win32defines.LB_ERR:
+            raise RuntimeError("LB_GETITEMRECT failed")
+        return rect
+    # Non PEP-8 alias
+    ItemRect = item_rect
+
+    #-----------------------------------------------------------
+    def texts(self):
+        """Return the texts of the control"""
+        texts = [self.window_text()]
+        texts.extend(self.item_texts())
+        return texts
+
+#    #-----------------------------------------------------------
+#    def get_properties(self):
+#        "Return the properties as a dictionary for the control"
+#        props = hwndwrapper.HwndWrapper.get_properties(self)
+#
+#        props['item_data'] = []
+#        for i in range(self.item_count()):
+#            props['item_data'].append(self.item_data(i))
+#
+#        return props
+
+    #-----------------------------------------------------------
+    def select(self, item, select=True):
+        """Select the StringGrid item
+
+        item can be either a 0 based index of the item to select
+        or it can be the string that you want to select
+        """
+        if self.is_single_selection() and isinstance(item, (list, tuple)) and len(item) > 1:
+            raise Exception('Cannot set multiple selection for single-selection StringGrid!')
+
+        if isinstance(item, (list, tuple)):
+            for i in item:
+                if i is not None:
+                    self.select(i, select)
+            return self
+
+        self.verify_actionable()
+
+        # Make sure we have an index  so if passed in a
+        # string then find which item it is
+        index = self._get_item_index(item)
+
+        if self.is_single_selection():
+            # change the selected item
+            self.send_message_timeout(win32defines.LB_SETCURSEL, index)
+        else:
+            if select:
+                # add the item to selection
+                self.send_message_timeout(win32defines.LB_SETSEL, win32defines.TRUE, index)
+            else:
+                # remove the item from selection
+                self.send_message_timeout(win32defines.LB_SETSEL, win32defines.FALSE, index)
+
+        # Notify the parent that we have changed
+        self.notify_parent(win32defines.LBN_SELCHANGE)
+
+        win32functions.WaitGuiThreadIdle(self)
+        time.sleep(Timings.after_stringgridselect_wait)
+
+        return self
+    # Non PEP-8 alias
+    Select = select
+
+    #-----------------------------------------------------------
+    def set_item_focus(self, item):
+        """Set the StringGrid focus to the item at index"""
+        index = self._get_item_index(item)
+
+        # if it is a multiple selection dialog
+        if self.has_style(win32defines.LBS_EXTENDEDSEL) or \
+            self.has_style(win32defines.LBS_MULTIPLESEL):
+            self.send_message_timeout(win32defines.LB_SETCARETINDEX, index)
+        else:
+            self.send_message_timeout(win32defines.LB_SETCURSEL, index)
+
+        win32functions.WaitGuiThreadIdle(self)
+        time.sleep(Timings.after_stringgridfocuschange_wait)
+
+        # return this control so that actions can be chained.
+        return self
+    # Non PEP-8 alias
+    SetItemFocus = set_item_focus
+
+    #-----------------------------------------------------------
+    def get_item_focus(self):
+        """Retrun the index of current selection in a StringGrid"""
+        # if it is a multiple selection dialog
+        if self.has_style(win32defines.LBS_EXTENDEDSEL) or \
+            self.has_style(win32defines.LBS_MULTIPLESEL):
+            return self.send_message(win32defines.LB_GETCARETINDEX)
+        else:
+            return self.send_message(win32defines.LB_GETCURSEL)
+    # Non PEP-8 alias
+    GetItemFocus = get_item_focus
+
+
 #====================================================================
 # the main reason for this is just to make sure that
 # a Dialog is a known class - and we don't need to take
