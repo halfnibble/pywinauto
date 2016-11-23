@@ -554,7 +554,8 @@ class HwndWrapper(BaseWrapper):
 
     #------------------------------------------------------------
     def get_message(self):
-        return win32functions.GetMessage(self, 0, 0)
+        message = ''
+        return win32functions.GetMessage(self, message, 0, 0)
         # return message
 
     # -----------------------------------------------------------
