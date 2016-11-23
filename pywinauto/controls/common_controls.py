@@ -655,6 +655,7 @@ class ListViewWrapper(hwndwrapper.HwndWrapper):
 
     friendlyclassname = "ListView"
     windowclasses = [
+        "TStringGrid",
         "SysListView32",
         r"WindowsForms\d*\.SysListView32\..*",
         "TSysListView",
