@@ -552,6 +552,11 @@ class HwndWrapper(BaseWrapper):
     # Non PEP-8 alias
     SendMessageTimeout = send_message_timeout
 
+    #------------------------------------------------------------
+    def get_message(self):
+        return win32functions.GetMessage(self, 0, 0)
+        # return message
+
     # -----------------------------------------------------------
     def post_message(self, message, wparam = 0, lparam = 0):
         """Post a message to the control message queue and return"""
